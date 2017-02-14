@@ -8,51 +8,38 @@
 
 import Charts
 
-private extension CGFloat {
-    var squared: CGFloat {
-        get{
-            return pow(self, 2)
-        }
-    }
-}
-
 public class PinChartHighlighter : ChartHighlighter
 {
-    override public func getHighlight(xValue xVal: Double, x: CGFloat, y: CGFloat) -> Highlight?
+    override public func getHighlight(x: CGFloat, y: CGFloat) -> Highlight?
     {
         guard
             let chart = chart as? LineChartView,
             let datas = chart.data?.dataSets as? [LineChartDataSet]
             else { return nil }
         
-        let closestValues = getHighlights(xValue: xVal, x: x, y: y)
-        if closestValues.isEmpty
-        {
-            return nil
-        }
-        
-        var detail: Highlight?
-        var min = CGFloat.greatestFiniteMagnitude
-        var circleRadius: CGFloat = 0
-        
-        for closestValue in closestValues {
-            let dataSet = datas[closestValue.dataSetIndex]
-            if dataSet.entryForXValue(closestValue.x, closestToY: closestValue.y)?.data == nil {
-                continue
-            }
+        for i in 0..<datas.count {
+            
+            let dataSet = datas[i]
             let radius = dataSet.circleRadius
-            let distance = (x - closestValue.xPx).squared + (y + radius - closestValue.yPx).squared
-            if distance < min  {
-                detail = closestValue
-                min = distance
-                circleRadius = radius
+            let from = chart.getTransformer(forAxis: dataSet.axisDependency).valueForTouchPoint(x: x-radius, y: y)
+            let to = chart.getTransformer(forAxis: dataSet.axisDependency).valueForTouchPoint(x: x+radius, y: y+radius*2)
+            let fromX = Double(from.x)
+            let fromY = Double(from.y)
+            let toX = Double(to.x)
+            let toY = Double(to.y)
+            
+            let entries = dataSet.values.filter({ (entry) -> Bool in
+                return entry.x > fromX && entry.x < toX && entry.y < fromY && entry.y > toY
+            })
+            
+            if let e = entries.last {
+                if e.data != nil {
+                    let px = chart.getTransformer(forAxis: dataSet.axisDependency).pixelForValues(x: e.x, y: e.y)
+                    return Highlight(x: e.x, y: e.y, xPx: px.x, yPx: px.y, dataSetIndex: i, axis: dataSet.axisDependency)
+                }
             }
         }
         
-        if min > circleRadius.squared {
-            return nil
-        }
-        
-        return detail
+        return nil
     }
 }
